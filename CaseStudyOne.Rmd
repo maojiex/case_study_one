@@ -1,0 +1,286 @@
+---
+title: "Case Study One"
+author: "Gowtham Katta, Maojie Xia, Joseph Woodall"
+date: "6/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+This RMarkdown is the analysis of the Breweries and Beers data sets, they contain Brewery ID, Brewery Name, City, State, Beer Name, Beer ID, ABV and IBU and Style of each beer, and its volume. This analysis will be comprehensive, covering most aspects of its descriptive statistics as well as a prediction algorithm. It will include answers to questions you might have, and will include visualizations to demonstrate major key points.
+
+## Including Plots
+
+
+You can also embed plots, for example:
+
+```{r}
+
+library(magrittr)
+library(dplyr)
+library(tidyverse)
+library(class)
+library(data.table)
+library(caret)
+library(ggplot2)
+library(e1071)
+library(GGally)
+
+Beers = read.csv("~/Desktop/MSDS/Github DDS/Unit 8 and 9 Case Study 1/Beers.csv")
+Breweries = read.csv("~/Desktop/MSDS/Github DDS/Unit 8 and 9 Case Study 1/Breweries.csv")
+
+```
+
+
+Question 1: How many breweries are present in each state?
+
+Answer: After examining the summary statistics of each column in the breweries data set, I found that there are about 10 breweries per state, with a minimum of 1 and a maximum of 47 breweries in any given state. You may find a breakdown of each state and its brewery count below.
+
+
+```{r}
+
+summary(Breweries$State)
+
+ggplot(Breweries, aes(x = State)) + geom_bar() + xlab("State") + 
+  ylab("Number of Breweries") + ggtitle("Number of Breweries in each State") +
+  geom_text(aes(label = ..count..), stat = "count", vjust = -0.5)
+
+```
+
+
+Question 2: Merge beer data with the breweries data. Print the first 6 observations and the last six observations to check the merged file.
+
+Answer: After merging the beer data set and the breweries data set, I found that the first 6 observations consisted of, in order, Ukiah Brewing Company, 4 observations of the Butternuts Beer and Ale company, and the Sleeping Lady Brewing Company, respectively.
+
+```{r}
+
+colnames(Breweries)[1] = c("Brewery_id")
+Total <- merge(Breweries, Beers, by = "Brewery_id")
+names(Total) = c("Brewery_id", "BreweryName", "City", "State", "BeerName", "Beer_ID", "ABV", "IBU", "Style", "Ounces")
+
+head(Total)
+tail(Total)
+
+```
+
+Question 3: Address the missing values in each column.
+
+Answer: By running a function which finds null values in the NewTotal data set, I found that the only columns to contain missing values were ABV and IBU. This could be a potential risk in any analysis using these features as it might lead to misleading, or unrepresentative, results. It would be wise to proceed with caution. 
+
+```{r}
+
+colSums(is.na(Total))
+
+NewTotal <- na.omit(Total)
+
+```
+
+Question 4: Compute the median alcohol content and international bitterness unit for each state. Plot a bar chart to compare.
+
+Answer: After comparing the median alcohol content and international bitterness unit for each state, I found that there were a few states, ME, WV, and CA, with a much higher ABV; ME and WV had a considerably higher IBU than the rest of the states. Again, this analysis is conducted after imputing a considerable amount of missing values, so this finding could change as a result of including those values.
+
+```{r}
+
+ABV <- data.frame(NewTotal %>% group_by(State) %>% summarise(Median_ABV = median(ABV)))
+
+ggplot(ABV, aes(x = State, y = Median_ABV*100)) + geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Median ABV %") + ggtitle("Median ABV % in each State") + 
+  geom_text(aes(label = Median_ABV*100), size=rel(1.75), vjust = -0.5) +
+  theme(axis.text.x = element_text(size = 5.5))
+
+sum(ABV$Median_ABV / 50)
+
+IBU <- data.frame(NewTotal %>% group_by(State) %>% summarise(Median_IBU = median(IBU)))
+IBU
+
+ggplot(IBU, aes(x = State, y = Median_IBU)) + geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Median IBU") + ggtitle("Median IBU in each State") + 
+  geom_text(aes(label = Median_IBU), size=rel(1.75), vjust = -0.5) + 
+  theme(axis.text.x = element_text(size = 5.5))
+
+sum(IBU$Median_IBU / 50)
+
+```
+
+Question 5: Which state has the maximum alcoholic (ABV) beer? Which state has the most bitter (IBU) beer?
+
+Answer: The state with the maximum alcoholic (ABV) beer is Kentucky, with an ABV value of 0.125. The state with the most bitter (IBU) beer is Oregon, with an IBU value of 138; this finding does not include missing values. So, after running the same code on the data set with no missing values. I found Colorado to have the highest ABV with a value of 0.128 and Oregon to again have the highest IBU value of 138.
+
+```{r}
+
+NewTotal[which.max(NewTotal$ABV),]
+
+Total[which.max(Total$ABV),]
+
+NewTotal[which.max(NewTotal$IBU),]
+
+```
+
+Question 6: Comment on the summary statistics and distribution of the ABV variable.
+
+Answer: Using the Total, the data set including missing values, I found ABV to have a minimum value of 0.001, a maximum value of 0.128, the first 25% of the data to have a value of 0.05, the first 50% of the data to have a value of 0.056, and the first 75% of the data to have a value of 0.067. The Total data are relatively equally distributed with only a few out-liers. Using the imputed data set, I found ABV to have a minimum value of 0.027, a maximum value of 0.125, the first 25% of the data to have a value of 0.05, the first 50% of the data to have a value of 0.057, and the first 75% of the data to have a value of 0.068. The data are slightly skewed to the right, meaning that the data are not equally distributed.
+
+```{r}
+
+summary(NewTotal$ABV)
+ggplot(NewTotal, aes(x = "", y = ABV * 100)) + geom_boxplot() + xlab("All States") + 
+  ylab("ABV %") + ggtitle("Summary of ABV %")
+
+```
+
+Question 7: Is there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot. Make your best judgment of a relationship and EXPLAIN your answer.
+
+Answer: After conducting a regression analysis on the potential relationship between the bitterness of the beer and its alcoholic content, there appears to be an association between the two variables. As we can see from the plot, as the bitterness of the beer increases the alcoholic content of the beer increases as well. After conducting a hypothesis test, we found that there seems to be a slight positive linear relationship between the bitterness of the beer and its alcoholic content. This relationship can only be inferred upon the ABV and IBU of the breweries included within the data, as any IBU below the minimum or maximum would be extrapolation, and therefore unrepresentative of the population of breweries and the ABV and IBU values of their beers.
+
+```{r}
+
+ggplot(NewTotal, aes(x = IBU, y = ABV)) + geom_point() + geom_smooth(method = lm) +
+  xlab("IBU") + ylab("ABV") + ggtitle("IBU versus ABV ")
+
+cor(NewTotal$IBU, NewTotal$ABV, method = c("pearson"))
+
+```
+
+Question 8: Budweiser would also like to investigate the difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale (any beer with “Ale” in its name other than IPA).  You decide to use KNN classification to investigate this relationship.  Provide statistical evidence one way or the other. You can of course assume your audience is comfortable with percentages … KNN is very easy to understand conceptually.
+
+Answer: Using KNN classifier, the model performed with an accuracy of 84%, a sensitivity of 87%, and a specificity of 80% to classify various beers as India Pale Ales or other types of Ale. We are 95% confident that any given value of IBU and ABV will be accurately predicted it as an India Pale Ale if it falls between the interval (0.80, 0.88). These statistics were found using a k value = 39.
+
+```{r}
+
+IPA <- Total[Total$Style %like% "IPA", ]
+
+IPA <- subset(IPA, select = c(IBU, ABV, Style))
+
+IPA$Style = c("IPA")
+
+
+Ale <- Total[Total$Style %like% "Ale", ]
+
+Ale <- Ale[!grepl("IPA", Ale$Style), ]
+
+Ale <- subset(Ale, select = c(IBU, ABV, Style))
+
+Ale$Style = c("Ale")
+
+TotalAle <- rbind(IPA, Ale)
+
+
+# Factorize variable style
+TotalAle$Style <- as.factor(TotalAle$Style)
+str(TotalAle)
+
+TotalAle <- na.omit(TotalAle)
+
+
+# Generate training index from 70% of total data set
+
+set.seed(1)
+splitPerc = 0.70
+
+TrainIndices = sample(1:nrow(TotalAle), splitPerc * nrow(TotalAle))
+TrainAle = TotalAle[TrainIndices,]
+TestAle = TotalAle[-TrainIndices,]
+
+# Standardize
+
+PreValues <- preProcess(TrainAle, method = c("center", "scale"))
+TrainAleC <- predict(PreValues, TrainAle)
+TestAleC <- predict(PreValues, TestAle)
+
+
+TrainAle <- TrainAleC[, -3]
+TestAle <- TestAleC[, -3]
+
+TrainAle1 <- TrainAleC[, 3, drop = TRUE]
+TestAle1 <- TestAleC[, 3, drop = TRUE]
+
+set.seed(1)
+
+model <- knn(train = TrainAle, test = TestAle, cl = TrainAle1, k = 39)
+confusionMatrix(TestAle1, model)
+
+```
+
+Q9: Knock their socks off!  Find one other useful inference from the data that you feel Budweiser may be able to find value in.  You must convince them why it is important and back up your conviction with appropriate statistical evidence. 
+
+A: After investigating the median alcohol content and international bitterness unit for the IPAs of each state, I found New Jersey to have the IPAs with the least amount of alcohol content and international bitteress unit among each state containing IPAs. Nevada has the highest ABV of the IPAs, and DC has the highest IBU of the IPAs. Again, this analysis is conducted after imputing a considerable amount of missing values, so this finding could change as a result of including those values.
+
+```{r}
+
+# Organizing by Region
+
+NewTotal2 <- NewTotal
+
+NewTotal2$Region <- sapply(NewTotal2$State, 
+                           function(x) {if_else(x %in% c(" DE"," DC"," FL"," GA"," MD"," NC"," SC"," VA"," WV"," AL", " KY"," MS"," TN"," AR"," LA"," OK"," TX"),
+                                                "South",
+                                                if_else(x %in% c(" CT"," ME"," MA"," NH"," RI"," VT"," NJ"," NY"," PA"),
+                                                        "Northeast",
+                                                        if_else(x %in% c(" IN"," IL"," MI"," OH"," WI"," IA"," KS", " MN"," MO"," NE", " ND"," SD"),
+                                                                "Midwest",
+                                                                if_else(x %in% c(" AZ"," CO"," ID"," NM"," MT"," UT"," NV"," WY"," AK"," CA", " HI"," OR"," WA"),
+                                                                        "West",
+                                                                        "Not Found"))))
+                           })
+
+# Checking the data set
+
+summary(NewTotal2)
+colSums(is.na(NewTotal2))
+
+# Data frame for annual temperatures in each state
+
+Temperatures = data.frame(State = c(" AL", " AK", " AZ", " AR", " CA", " CO", " CT", " DE", 
+                                    " FL", " GA", " HI", " ID", " IL", " IN", 
+                                    " IA", " KS", " KY", " LA", " ME", " MD", " MA", " MI", 
+                                    " MN", " MS", " MO", " MT", " NE", " NV", " NH", " NJ", 
+                                    " NM", " NY", " NC", " ND", " OH", " OK", " OR", 
+                                    " PA", " RI", " SC", " SD", " TN", " TX", " UT", 
+                                    " VT", " VA", " WA", " WV", " WI", " WY"), 
+                          AnnualTemp = c(62.8, 26.6, 60.3, 60.4, 59.4, 45.1, 49.0, 55.3, 70.7, 63.5,
+                                         70.0, 44.4, 51.8, 51.7, 47.8, 54.3, 55.6, 66.4, 41.0,
+                                         54.2, 47.9, 44.4, 41.2, 63.4, 54.5, 42.7, 48.8, 49.9,
+                                         43.8, 52.7, 53.4, 45.4, 59.0, 40.4, 50.7, 59.6,
+                                         48.4, 48.8, 50.1, 62.4, 45.2, 57.6, 64.8, 48.6, 
+                                         42.9, 55.1, 48.3, 51.8, 43.1, 42.0))
+
+# Merge with the temperatures data frame
+NewTotal2 <- merge(NewTotal2, Temperatures, by = "State")
+
+# Comparing the number of breweries in each region with GGPairs
+
+Compare = NewTotal2 %>% filter(Region == "South" | Region == "Northeast" |
+                                        Region == "Midwest" | Region == "West")
+
+Compare %>% select(ABV, AnnualTemp, Region) %>% ggpairs(aes(color = Region))
+
+
+# Number of Breweries in each region
+
+ggplot(NewTotal2, aes(x = Region, fill = Region)) + geom_bar() + xlab("State") + 
+  ylab("Number of Breweries") + ggtitle("Number of Breweries in each State") +
+  geom_text(aes(label = ..count..), stat = "count", vjust = -0.5)
+
+# Average annual temperature in each region numerically
+
+AnnualTemp2 <- data.frame(NewTotal2 %>% group_by(Region) %>% summarise(Mean_AnnualTemp = mean(AnnualTemp)))
+AnnualTemp2
+
+# Average ABV in each region numerically
+
+ABV2 <- data.frame(NewTotal2 %>% group_by(Region) %>% summarise(Mean_ABV = mean(ABV*100)))
+ABV2
+
+```
+
+Summary of Findings:
+
+The data tell an interesting story. There are about 10 breweries per state, with various states being above and below the median IBU and ABV values for their IPAs and other Ales. Based on the data, the most untapped markets would be those with the lowest IBU and ABV values for both their IPAs and Ales. However, this data contained a significant number of missing values, values which would be important to include if further statistical analyses were conducted using the same features. There is, in fact, enough statistically significant evidence to suggest an association between the IBU and ABV of the beers mentioned within the data. A classifier would be an easy way to confidently predict if any given beer was an IPA or another type of Ale. 
+
+It is up to the stakeholders to solidify this determination, but there seems to be potential market for IPAs with a low IBU and ABV value. Under this market, the conditions, assuming all factors held even, would be predictable based on previous Ale markets.
